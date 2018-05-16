@@ -25,15 +25,15 @@ try
 }
 }
 
-function submitMBApi($mbid){  
+function submitMBApi($query){  
     try
     {
         $timeStamp = Get-Date -Format "HHMMss";
-        $parameterWildcard = "?"    
-    
-        #Concatenando com timestamp para evitar caching.
-        $baseUri = "https://musicbrainz.org/ws/2/"
-        $uri = $baseUri+$parameterWildcard+"UMT="+$timeStamp+"&format=json";
+        $parameterWildcard = "&"    
+            
+        
+        $baseUri = "http://musicbrainz.org/ws/2/recording/?query=$query"
+        $uri = $baseUri+$parameterWildcard+"UMT="+$timeStamp+"&fmt=json";
         $results = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers
         
         return $results;
@@ -69,8 +69,10 @@ function getArtistTracks($user, $artist, $page){
     return submitApi "user.getArtistTracks" "&user=$user&artist=$artist&page=$page"
 }
 
-function getMusicBrainzBandInfo($mbid){    
-    return Invoke-WebRequest "https://musicbrainz.org/ws/2/recording?artist=$mbid"
+function getMusicBrainzBandInfo($artist, $track){    
+    $result = submitMBApi "recording:$track"
+    $filtered = $result.recordings | Where-Object {$_.'artist-credit'.artist.name -eq "$artist" -and [string]::IsNullOrEmpty($_.disambiguation) }
+    return $filtered | Select-Object -first 1
 }
 
 $globalUser = "deivisvieira"
@@ -103,7 +105,7 @@ $pages = 1000
 $cont = 0
 #Lista que irá armazenar os totais de cada música
 $outputList = New-Object System.Collections.Generic.List[System.Object]
-#$teste = getMusicBrainzBandInfo "c6b0db5a-d750-4ed8-9caa-ddcfb75dcb0a"
+
 for ($i=1;$i -le $pages;$i++){
     # Barra de Progresso
     $currProgress = [math]::floor(($i / $pages)  * 100)
@@ -115,6 +117,7 @@ for ($i=1;$i -le $pages;$i++){
         if ($($track.artist.'#text') -eq $globalBand){  
             $exists = $outputList | Where-Object { $($track.name) -contains $_.name}
            if ([String]::IsNullOrWhiteSpace($exists)){
+                $track | Add-Member playtime $(getMusicBrainzBandInfo $($track.artist.'#text') $($track.name)).length
                 $track | Add-Member contagem 1                
                 $outputList.Add($track)
            } else {
@@ -129,14 +132,14 @@ Write-Progress -Completed -Activity "Script em Progresso"
 Write-Host "Total de scrobbles do $globalBand : "
 $reorderedOutput = $outputList | Sort-Object -Property @{Expression={[int]($_.contagem)}} -Descending
 foreach ($track in $reorderedOutput){
-    #$info = getTrackInfoByMbid $track.mbid
-    $info = getTrackInfoByName $track.name $track.artist.'#text'
-    if ($info.track.duration -le 0){
-        $info = getTrackCorrectionByName $track.name $track.artist.'#text'
-        $info = getTrackInfoByMbid $info.corrections.correction.track.mbid
-    }
-    $playtime = $info.track.duration / 1000
-    $track | Add-Member playtime $playtime
+    # #$info = getTrackInfoByMbid $track.mbid
+    # $info = getTrackInfoByName $track.name $track.artist.'#text'
+    # if ($info.track.duration -le 0){
+    #     $info = getTrackCorrectionByName $track.name $track.artist.'#text'
+    #     $info = getTrackInfoByMbid $info.corrections.correction.track.mbid
+    # }
+    # $playtime = $info.track.duration / 1000
+    # $track | Add-Member playtime $playtime
     $ts =  [timespan]::fromseconds($track.playtime*$track.contagem)
     $totalPlayTime += $track.playtime*$track.contagem
     Write-Host $track.name - $track.contagem " vezes, somando $($ts.ToString("hh\:mm\:ss\,fff")) ."
