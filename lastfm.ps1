@@ -70,13 +70,14 @@ function getArtistTracks($user, $artist, $page){
 }
 
 function getMusicBrainzBandInfo($artist, $track){    
-    $result = submitMBApi "recording:$track"
-    $filtered = $result.recordings | Where-Object {$_.'artist-credit'.artist.name -eq "$artist" -and [string]::IsNullOrEmpty($_.disambiguation) }
+    $result = submitMBApi "recording:""$track""+AND+artist:""'$artist"""
+    $filtered = $result.recordings | Where-Object { [string]::IsNullOrEmpty($_.disambiguation) }
+    Start-Sleep -s 1
     return $filtered | Select-Object -first 1
 }
 
-$globalUser = "deivisvieira"
-$globalBand = "Dream Theater"
+$globalUser = Read-Host -Prompt 'Insira o nome do usuário LastFM'
+$globalBand = Read-Host -Prompt 'Insira a banda a ser apurada'
 
 $userinfo = getUserInfo $globalUser
 Write-Host "Usuario: " $userinfo.user.name
@@ -100,7 +101,7 @@ function showRecentTracks(){
 #showRecentTracks
 
 #Forçando a passagem ao menos uma vez pelo laço abaixo
-$pages = 1000
+$pages = 5
 #Contador de scrobbles genérico
 $cont = 0
 #Lista que irá armazenar os totais de cada música
@@ -117,8 +118,8 @@ for ($i=1;$i -le $pages;$i++){
         if ($($track.artist.'#text') -eq $globalBand){  
             $exists = $outputList | Where-Object { $($track.name) -contains $_.name}
            if ([String]::IsNullOrWhiteSpace($exists)){
-                $track | Add-Member playtime $(getMusicBrainzBandInfo $($track.artist.'#text') $($track.name)).length
-                $track | Add-Member contagem 1                
+                $track | Add-Member -Force playtime $(getMusicBrainzBandInfo $($track.artist.'#text') $($track.name)).length
+                $track | Add-Member -Force contagem 1                
                 $outputList.Add($track)
            } else {
                 $exists.contagem++
@@ -138,7 +139,7 @@ foreach ($track in $reorderedOutput){
     #     $info = getTrackCorrectionByName $track.name $track.artist.'#text'
     #     $info = getTrackInfoByMbid $info.corrections.correction.track.mbid
     # }
-    # $playtime = $info.track.duration / 1000
+    $track.playtime = $track.playtime / 1000
     # $track | Add-Member playtime $playtime
     $ts =  [timespan]::fromseconds($track.playtime*$track.contagem)
     $totalPlayTime += $track.playtime*$track.contagem
