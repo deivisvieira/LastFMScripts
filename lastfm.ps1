@@ -101,7 +101,7 @@ function showRecentTracks(){
 #showRecentTracks
 
 #Forçando a passagem ao menos uma vez pelo laço abaixo
-$pages = 5
+$pages = 1000
 #Contador de scrobbles genérico
 $cont = 0
 #Lista que irá armazenar os totais de cada música
